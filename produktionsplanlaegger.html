@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Produktionsplanlægger</title>
+<style>
+  :root {
+    --bg: #f3f5f8;
+    --panel: #ffffff;
+    --ink: #1c2230;
+    --muted: #5d6779;
+    --line: #dde2ea;
+    --soft: #eef1f6;
+    --accent: #2459d6;
+    --accent-ink: #ffffff;
+    --ok: #2f6fdf;
+    --ok-2: #5089ea;
+    --late: #d33a3a;
+    --late-2: #e25b5b;
+    --late-soft: #fdeaea;
+    --late-ink: #a01d1d;
+    --good: #1d8549;
+    --good-soft: #e2f3e9;
+    --warn: #9a5b00;
+    --warn-soft: #fff1d6;
+    --stop: #79818f;
+    --stop-a: #d9dde4;
+    --stop-b: #c4cad3;
+    --grid-day: #c9d0db;
+    --grid-hour: #edf0f4;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 2px 6px rgba(16, 24, 40, .06);
+    --radius: 12px;
+    --dayw: 132px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151b; --panel: #1b2029; --ink: #e7eaf0; --muted: #9aa4b5; --line: #2d3442; --soft: #232935;
+      --accent: #6d9bff; --accent-ink: #0d1220;
+      --ok: #3f7be6; --ok-2: #5b90ee; --late: #e04848; --late-2: #ea6767; --late-soft: #3a1f22; --late-ink: #ff9d9d;
+      --good: #4cc27f; --good-soft: #193326; --warn: #f0b456; --warn-soft: #3a2e17;
+      --stop: #8d95a3; --stop-a: #3a414e; --stop-b: #2e343f; --grid-day: #3a4252; --grid-hour: #222833;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151b; --panel: #1b2029; --ink: #e7eaf0; --muted: #9aa4b5; --line: #2d3442; --soft: #232935;
+    --accent: #6d9bff; --accent-ink: #0d1220;
+    --ok: #3f7be6; --ok-2: #5b90ee; --late: #e04848; --late-2: #ea6767; --late-soft: #3a1f22; --late-ink: #ff9d9d;
+    --good: #4cc27f; --good-soft: #193326; --warn: #f0b456; --warn-soft: #3a2e17;
+    --stop: #8d95a3; --stop-a: #3a414e; --stop-b: #2e343f; --grid-day: #3a4252; --grid-hour: #222833;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 20px 16px 48px;
+  }
+  .page { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -.01em; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  h3 { font-size: 15px; margin: 0; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+
+  header.top { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; }
+  header.top .intro { display: flex; flex-direction: column; gap: 4px; max-width: 640px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .save-status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .save-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+  .save-status.error::before { background: var(--late); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-width: 0; }
+  .card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+  .card-head h2 { margin: 0; }
+
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input, select, button { font: inherit; color: inherit; }
+  input, select {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-height: 36px; color: var(--ink);
+  }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    border: 1px solid var(--line); background: var(--soft); border-radius: 8px; padding: 7px 12px; min-height: 36px; cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.ghost { background: transparent; }
+  button.icon { padding: 2px 8px; min-height: 28px; font-size: 13px; line-height: 1; }
+  button:disabled { opacity: .35; cursor: default; }
+
+  /* KPI'er */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .value { font-size: 24px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi .sub { font-size: 12px; color: var(--muted); }
+  .kpi.bad { border-color: var(--late); background: var(--late-soft); }
+  .kpi.bad .value { color: var(--late-ink); }
+  .kpi.goodk .value { color: var(--good); }
+
+  /* Konsekvenser */
+  .changes { border-left: 4px solid var(--accent); }
+  .changes ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .changes li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; padding: 6px 8px; border-radius: 8px; background: var(--soft); }
+  .changes .what { font-weight: 600; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.late { background: var(--late-soft); color: var(--late-ink); border: 1px solid var(--late); }
+  .badge.ok { background: var(--good-soft); color: var(--good); border: 1px solid var(--good); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
+  .badge.neutral { background: var(--soft); color: var(--muted); border: 1px solid var(--line); }
+
+  /* Tidslinje */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); align-items: center; }
+  .sw { display: inline-block; width: 16px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+  .sw.ok { background: var(--ok); }
+  .sw.late { background: var(--late); }
+  .sw.stop { background: repeating-linear-gradient(45deg, var(--stop-a) 0 4px, var(--stop-b) 4px 8px); border: 1px solid var(--stop); }
+  .sw.dl { width: 0; height: 14px; border-left: 2px dashed var(--ink); border-radius: 0; }
+
+  .tl { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+  .tl-labels { flex: 0 0 168px; border-right: 1px solid var(--line); background: var(--panel); z-index: 5; }
+  .tl-labels .spacer { height: 52px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-end; padding: 0 10px 6px; font-size: 12px; color: var(--muted); }
+  .tl-labels .mlabel { height: 72px; padding: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .tl-labels .mlabel:first-of-type { border-top: 0; }
+  .tl-labels .mname { font-weight: 600; font-size: 14px; }
+  .tl-labels .msub { font-size: 12px; color: var(--muted); }
+  .tl-scroll { flex: 1; overflow-x: auto; min-width: 0; }
+  .tl-inner { position: relative; }
+  .tl-weeks, .tl-days { display: flex; }
+  .tl-weeks div { height: 24px; font-size: 12px; font-weight: 600; padding: 4px 8px; border-left: 2px solid var(--grid-day); color: var(--muted); white-space: nowrap; overflow: hidden; }
+  .tl-days { border-bottom: 1px solid var(--line); }
+  .tl-days div { flex: 0 0 var(--dayw); height: 28px; font-size: 12px; padding: 5px 8px; border-left: 1px solid var(--grid-day); white-space: nowrap; display: flex; justify-content: space-between; }
+  .tl-days div.monday { border-left-width: 2px; }
+  .tl-days div span:last-child { color: var(--muted); }
+  .lane {
+    position: relative; height: 72px; border-top: 1px solid var(--line);
+    background-image:
+      linear-gradient(to right, var(--grid-day) 1px, transparent 1px),
+      linear-gradient(to right, var(--grid-hour) 1px, transparent 1px);
+    background-size: var(--dayw) 100%, calc(var(--dayw) / 8) 100%;
+  }
+  .lane:first-of-type { border-top: 0; }
+  .wkline { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--grid-day); }
+  .seg {
+    position: absolute; top: 14px; height: 44px; border-radius: 6px; background: var(--ok); color: #fff;
+    font-size: 12px; line-height: 1.25; padding: 4px 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    cursor: pointer; z-index: 2; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+  }
+  .seg.alt { background: var(--ok-2); }
+  .seg.late { background: var(--late); }
+  .seg.late.alt { background: var(--late-2); }
+  .seg.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  .seg.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .seg b { display: block; overflow: hidden; text-overflow: ellipsis; }
+  .seg span { opacity: .9; }
+  .seg.sel { outline: 3px solid var(--ink); outline-offset: 1px; z-index: 3; }
+  .seg.dim { opacity: .45; }
+  .stopblk {
+    position: absolute; top: 4px; bottom: 4px; z-index: 1; border: 1px solid var(--stop); border-radius: 4px;
+    background: repeating-linear-gradient(45deg, var(--stop-a) 0 6px, var(--stop-b) 6px 12px);
+    font-size: 11px; font-weight: 600; color: var(--ink); padding: 2px 4px; overflow: hidden; white-space: nowrap; cursor: help;
+    display: flex; align-items: flex-end;
+  }
+  .dlmark { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--ink); z-index: 4; pointer-events: none; }
+  .dlmark span { position: absolute; top: 0; left: 4px; font-size: 11px; font-weight: 600; background: var(--panel); padding: 0 4px; border-radius: 4px; white-space: nowrap; border: 1px solid var(--line); }
+  .dlmark.late { border-left-color: var(--late); }
+  .dlmark.late span { color: var(--late-ink); border-color: var(--late); }
+
+  .tooltip {
+    position: fixed; z-index: 50; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 13px; max-width: 300px; display: none;
+  }
+  .tooltip .tt-title { font-weight: 700; margin-bottom: 4px; }
+  .tooltip dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
+  .tooltip dt { color: var(--muted); }
+  .tooltip dd { margin: 0; }
+
+  /* Layout */
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  @media (max-width: 960px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+  /* Køer */
+  .queues { display: flex; flex-direction: column; gap: 14px; }
+  .queue h3 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 6px; }
+  .queue h3 small { font-weight: 400; color: var(--muted); font-size: 12px; }
+  .queue ol { list-style: none; margin: 0; padding: 4px; border: 1px dashed var(--line); border-radius: 10px; display: flex; flex-direction: column; gap: 4px; min-height: 44px; }
+  .queue li {
+    display: grid; grid-template-columns: 18px 22px minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
+    padding: 7px 8px; border-radius: 8px; background: var(--soft); border: 1px solid transparent; cursor: grab; position: relative;
+  }
+  .queue li.late { background: var(--late-soft); border-color: var(--late); }
+  .queue li.sel { border-color: var(--ink); }
+  .queue li.dragging { opacity: .4; }
+  .queue li.drop-before::before, .queue li.drop-after::after {
+    content: ""; position: absolute; left: 6px; right: 6px; height: 3px; background: var(--accent); border-radius: 2px;
+  }
+  .queue li.drop-before::before { top: -4px; }
+  .queue li.drop-after::after { bottom: -4px; }
+  .handle { color: var(--muted); font-size: 14px; letter-spacing: -2px; user-select: none; }
+  .pos { font-size: 12px; font-weight: 700; color: var(--muted); text-align: center; }
+  .qmain { min-width: 0; }
+  .qmain .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qmain .s { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qbtns { display: flex; gap: 4px; }
+
+  /* Formularer */
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  @media (max-width: 520px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
+  .form-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .form-msg { font-size: 13px; color: var(--late-ink); }
+  .stops-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .stops-list li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: 13px; }
+  .stops-list li .info { min-width: 0; }
+  .stops-list .empty { background: transparent; color: var(--muted); padding: 4px 0; }
+  details summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+  details[open] summary { margin-bottom: 12px; }
+
+  /* Tabel */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 980px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+  th { background: var(--soft); font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--soft); }
+  tbody tr.late { background: var(--late-soft); }
+  tbody tr.late td:first-child { box-shadow: inset 4px 0 0 var(--late); }
+  tbody tr.sel { outline: 2px solid var(--ink); outline-offset: -2px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .calc { color: var(--muted); font-size: 12px; }
+  @keyframes flash { from { background: var(--warn-soft); } to { background: transparent; } }
+  tr.flash td { animation: flash 2.2s ease-out; }
+
+  .help { font-size: 13px; color: var(--muted); }
+  .help strong { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="top">
+    <div class="intro">
+      <h1>Produktionsplanlægger</h1>
+      <p class="muted">Tre maskiner · arbejdstid mandag–fredag kl. 07–15 (8 timer pr. dag). Ordretid = antal enheder × produktionstid pr. enhed. En ordre der ikke bliver færdig, fortsætter næste arbejdsdag.</p>
+    </div>
+    <div class="controls">
+      <label>Planen starter
+        <input type="datetime-local" id="planStart">
+      </label>
+      <button type="button" id="resetBtn" class="ghost">Nulstil til eksempeldata</button>
+      <div class="save-status" id="saveStatus" aria-live="polite">Indlæser …</div>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="Nøgletal"></section>
+
+  <section class="card changes" id="changes" aria-live="polite"></section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Tidslinje pr. maskine</h2>
+      <div class="legend">
+        <span><i class="sw ok"></i>Ordre til tiden</span>
+        <span><i class="sw late"></i>Overskrider deadline</span>
+        <span><i class="sw stop"></i>Maskinstop</span>
+        <span><i class="sw dl"></i>Deadline for valgt ordre</span>
+      </div>
+    </div>
+    <div class="tl" id="timeline"></div>
+    <p class="help" style="margin-top:8px">Tidslinjen viser kun arbejdstid – nætter og weekender er klippet ud. Klik på en ordre for at se dens deadline. Hold musen over for detaljer.</p>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <div class="card-head">
+        <h2>Rækkefølge pr. maskine</h2>
+        <span class="help">Træk i ⋮⋮ eller brug ↑ ↓</span>
+      </div>
+      <div class="queues" id="queues"></div>
+    </section>
+
+    <div class="stack">
+      <section class="card">
+        <h2>Maskinstop</h2>
+        <form id="stopForm" novalidate>
+          <div class="form-grid">
+            <label>Maskine
+              <select id="stopMachine"></select>
+            </label>
+            <label>Starttidspunkt
+              <input type="datetime-local" id="stopStart" required>
+            </label>
+            <label>Varighed (timer)
+              <input type="number" id="stopHours" min="0.25" step="0.25" value="8" required>
+            </label>
+            <label>Årsag (valgfri)
+              <input type="text" id="stopReason" placeholder="fx Værktøjsskift" maxlength="60">
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="primary">Tilføj maskinstop</button>
+            <span class="form-msg" id="stopMsg"></span>
+          </div>
+          <p class="help" style="margin-top:8px">Varigheden regnes i kalendertimer fra starttidspunktet. Kun den del af stoppet, der ligger i arbejdstiden, skubber produktionen.</p>
+        </form>
+        <ul class="stops-list" id="stopsList"></ul>
+      </section>
+
+      <section class="card">
+        <details id="orderDetails">
+          <summary>Tilføj ny ordre</summary>
+          <form id="orderForm" novalidate>
+            <div class="form-grid">
+              <label>Ordrenummer
+                <input type="text" id="oNr" placeholder="fx 2026-109" maxlength="20" required>
+              </label>
+              <label>Kunde
+                <input type="text" id="oCustomer" placeholder="Kundenavn" maxlength="60" required>
+              </label>
+              <label>Antal enheder
+                <input type="number" id="oQty" min="1" step="1" required>
+              </label>
+              <label>Tid pr. enhed (minutter)
+                <input type="number" id="oMin" min="0.1" step="0.1" required>
+              </label>
+              <label>Deadline
+                <input type="datetime-local" id="oDeadline" required>
+              </label>
+              <label>Maskine
+                <select id="oMachine"></select>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary">Tilføj ordre</button>
+              <span class="form-msg" id="orderMsg"></span>
+            </div>
+          </form>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Ordreoversigt</h2>
+      <span class="help">Sorteret efter maskine og rækkefølge</span>
+    </div>
+    <div class="table-wrap" id="tableWrap"></div>
+  </section>
+
+</div>
+
+<div class="tooltip" id="tooltip" role="tooltip"></div>
+
+<script>
+'use strict';
+
+/* ---------- Konstanter ---------- */
+const STORAGE_KEY = 'produktionsplanlaegger.v1';
+const DAY_START = 7 * 60;   // 07:00 i minutter
+const DAY_END = 15 * 60;    // 15:00 i minutter
+const WORK_MIN_PER_DAY = DAY_END - DAY_START;
+const DAY_W = 132;          // pixel pr. arbejdsdag på tidslinjen
+const MIN = 60000, HOUR = 3600000;
+const WEEKDAYS = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
+
+const MACHINES = [
+  { id: 'M1', name: 'M1 · CNC-fræser' },
+  { id: 'M2', name: 'M2 · Drejebænk' },
+  { id: 'M3', name: 'M3 · Kantbukker' }
+];
+const machineName = id => (MACHINES.find(m => m.id === id) || { name: id }).name;
+
+/* ---------- Dato-hjælpere ---------- */
+const pad = n => String(n).padStart(2, '0');
+const isWorkday = d => { const w = d.getDay(); return w >= 1 && w <= 5; };
+const minutesOfDay = d => d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+const dayKey = d => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+function toInput(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function parseInput(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || '');
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  return isNaN(d) ? null : d;
+}
+function fmtTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fmtDate(d) { return `${WEEKDAYS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`; }
+function fmtDT(d) { d = new Date(d); return `${fmtDate(d)} kl. ${fmtTime(d)}`; }
+
+/* Varighed i kalendertid, fx "1 d 4 t 20 min" */
+function fmtSpan(ms) {
+  let mins = Math.round(Math.abs(ms) / MIN);
+  if (mins === 0) return '0 min';
+  const d = Math.floor(mins / 1440); mins -= d * 1440;
+  const h = Math.floor(mins / 60); const m = mins - h * 60;
+  const parts = [];
+  if (d) parts.push(d + ' d');
+  if (h) parts.push(h + ' t');
+  if (m) parts.push(m + ' min');
+  return parts.join(' ');
+}
+/* Arbejdstid i minutter, fx "12 t 30 min" */
+function fmtWork(minutes) {
+  let total = Math.round(minutes);
+  const h = Math.floor(total / 60); const m = total - h * 60;
+  if (!h) return m + ' min';
+  return m ? `${h} t ${m} min` : `${h} t`;
+}
+const fmtNum = n => Number(n).toLocaleString('da-DK', { maximumFractionDigits: 2 });
+
+/* Flyt et tidspunkt frem til næste øjeblik i arbejdstiden */
+function alignToWork(t) {
+  let d = new Date(t);
+  for (let i = 0; i < 5000; i++) {
+    if (!isWorkday(d)) { d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 7, 0); continue; }
+    const m = minutesOfDay(d);
+    if (m < DAY_START) return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 7, 0);
+    if (m >= DAY_END) { d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 7, 0); continue; }
+    return d;
+  }
+  return d;
+}
+const endOfWorkday = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 15, 0);
+
+function addWorkdays(start, n, h, m) {
+  const x = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  let c = 0;
+  while (c < n) { x.setDate(x.getDate() + 1); if (isWorkday(x)) c++; }
+  x.setHours(h, m || 0, 0, 0);
+  return x;
+}
+/* Standard planstart: mandag kl. 07 i indeværende uge (eller kommende mandag i weekenden) */
+function defaultStart() {
+  const t = new Date();
+  const d = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 7, 0);
+  const w = d.getDay();
+  if (w === 6) d.setDate(d.getDate() + 2);
+  else if (w === 0) d.setDate(d.getDate() + 1);
+  else d.setDate(d.getDate() - (w - 1));
+  return d;
+}
+function isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+/* ---------- Eksempeldata ---------- */
+function sampleState() {
+  const s = defaultStart();
+  const dl = (n, h, m) => toInput(addWorkdays(s, n, h, m));
+  const orders = [
+    { id: 'o1', nr: '2026-101', customer: 'Nordjysk Stål ApS',      qty: 120, min: 6,   deadline: dl(1, 15), machine: 'M1' },
+    { id: 'o4', nr: '2026-104', customer: 'Limfjord Marine A/S',    qty: 40,  min: 18,  deadline: dl(6, 15), machine: 'M1' },
+    { id: 'o7', nr: '2026-107', customer: 'Aarhus Hydraulik A/S',   qty: 280, min: 4,   deadline: dl(4, 10), machine: 'M1' },
+    { id: 'o2', nr: '2026-102', customer: 'Fyns Maskinfabrik',      qty: 60,  min: 12,  deadline: dl(2, 12), machine: 'M2' },
+    { id: 'o5', nr: '2026-105', customer: 'Kolding Pumper ApS',     qty: 500, min: 2.5, deadline: dl(5, 15), machine: 'M2' },
+    { id: 'o8', nr: '2026-108', customer: 'Silkeborg Agro I/S',     qty: 90,  min: 5,   deadline: dl(2, 15), machine: 'M2' },
+    { id: 'o3', nr: '2026-103', customer: 'Herning Inventar',       qty: 200, min: 3,   deadline: dl(1, 15), machine: 'M3' },
+    { id: 'o6', nr: '2026-106', customer: 'Sjællands Ventilation',  qty: 150, min: 7,   deadline: dl(4, 15), machine: 'M3' }
+  ];
+  return {
+    version: 1,
+    planStart: toInput(s),
+    orders,
+    queues: { M1: ['o1', 'o4', 'o7'], M2: ['o2', 'o5', 'o8'], M3: ['o3', 'o6'] },
+    stops: []
+  };
+}
+
+/* ---------- Lagring ---------- */
+function normalize(s) {
+  if (!s || !Array.isArray(s.orders) || !s.queues) return null;
+  if (!parseInput(s.planStart)) s.planStart = toInput(defaultStart());
+  s.orders = s.orders.filter(o => o && o.id && MACHINES.some(m => m.id === o.machine))
+    .map(o => ({ ...o, qty: Number(o.qty) || 0, min: Number(o.min) || 0 }));
+  const ids = new Set(s.orders.map(o => o.id));
+  const queues = {};
+  const seen = new Set();
+  for (const m of MACHINES) {
+    queues[m.id] = (Array.isArray(s.queues[m.id]) ? s.queues[m.id] : [])
+      .filter(id => ids.has(id) && !seen.has(id) && s.orders.find(o => o.id === id).machine === m.id);
+    queues[m.id].forEach(id => seen.add(id));
+  }
+  for (const o of s.orders) if (!seen.has(o.id)) queues[o.machine].push(o.id);
+  s.queues = queues;
+  s.stops = (Array.isArray(s.stops) ? s.stops : [])
+    .filter(st => st && MACHINES.some(m => m.id === st.machine) && parseInput(st.start) && Number(st.hours) > 0);
+  s.version = 1;
+  return s;
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const s = normalize(JSON.parse(raw)); if (s) return { state: s, from: 'storage' }; }
+  } catch (e) { /* ignorer og brug eksempeldata */ }
+  return { state: sampleState(), from: 'sample' };
+}
+function save() {
+  const el = document.getElementById('saveStatus');
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    el.textContent = 'Gemt i browseren kl. ' + fmtTime(new Date());
+    el.classList.remove('error');
+  } catch (e) {
+    el.textContent = 'Kunne ikke gemme – lokal lagring er blokeret';
+    el.classList.add('error');
+  }
+}
+
+/* ---------- Planlægning ---------- */
+const orderById = id => state.orders.find(o => o.id === id);
+const orderMinutes = o => o.qty * o.min;
+
+function stopIntervals(machineId) {
+  return state.stops.filter(s => s.machine === machineId).map(s => {
+    const a = +parseInput(s.start);
+    return { s: a, e: a + Number(s.hours) * HOUR, ref: s };
+  }).sort((x, y) => x.s - y.s);
+}
+
+/* Planlæg én maskine: ordrer i rækkefølge, kun i arbejdstid, uden om maskinstop */
+function scheduleMachine(machineId, start, withStops) {
+  const stops = withStops ? stopIntervals(machineId) : [];
+  const out = {};
+  let cur = +start;
+  state.queues[machineId].forEach((id, idx) => {
+    const o = orderById(id);
+    let rem = Math.round(orderMinutes(o) * MIN);
+    const segs = [];
+    let first = null;
+    let guard = 0;
+    while (rem > 0 && guard++ < 20000) {
+      cur = +alignToWork(cur);
+      // spring forbi maskinstop, som dækker det aktuelle tidspunkt
+      let moved = true;
+      while (moved) {
+        moved = false;
+        for (const st of stops) {
+          if (cur >= st.s && cur < st.e) { cur = +alignToWork(st.e); moved = true; }
+        }
+      }
+      let limit = +endOfWorkday(new Date(cur));
+      for (const st of stops) if (st.s > cur && st.s < limit) limit = st.s;
+      const chunk = Math.min(rem, limit - cur);
+      if (first === null) first = cur;
+      segs.push({ s: cur, e: cur + chunk });
+      cur += chunk;
+      rem -= chunk;
+    }
+    if (first === null) { first = +alignToWork(cur); }
+    const deadline = parseInput(o.deadline);
+    const finish = cur;
+    const diff = deadline ? finish - deadline : 0;
+    out[id] = {
+      id, machine: machineId, pos: idx + 1, start: first, finish, segs,
+      workMin: orderMinutes(o), deadline: deadline ? +deadline : null,
+      late: diff > 0, diff
+    };
+  });
+  return out;
+}
+function computePlan(withStops) {
+  const start = alignToWork(parseInput(state.planStart) || defaultStart());
+  const plan = {};
+  for (const m of MACHINES) Object.assign(plan, scheduleMachine(m.id, start, withStops));
+  return plan;
+}
+
+/* ---------- Tilstand ---------- */
+let state;
+const ui = { selected: null, lastPlan: null, changeLabel: '', changes: null, flash: new Set() };
+
+function commit(label) {
+  save();
+  const plan = computePlan(true);
+  ui.changeLabel = label;
+  ui.changes = ui.lastPlan ? diffPlans(ui.lastPlan, plan) : null;
+  ui.flash = new Set((ui.changes || []).map(c => c.id));
+  ui.lastPlan = plan;
+  render(plan);
+}
+
+function diffPlans(prev, next) {
+  const out = [];
+  for (const id of Object.keys(next)) {
+    const n = next[id], p = prev[id];
+    if (!p) { out.push({ id, type: 'new', n }); continue; }
+    const delta = n.finish - p.finish;
+    if (Math.abs(delta) >= MIN || n.late !== p.late || n.deadline !== p.deadline) out.push({ id, type: 'moved', n, p, delta });
+  }
+  out.sort((a, b) => (b.n.late - a.n.late) || Math.abs(b.delta || 0) - Math.abs(a.delta || 0));
+  return out;
+}
+
+/* ---------- Visning ---------- */
+const $ = id => document.getElementById(id);
+
+function render(plan) {
+  const base = computePlan(false);
+  $('planStart').value = state.planStart;
+  renderKpis(plan);
+  renderChanges(plan);
+  renderTimeline(plan);
+  renderQueues(plan);
+  renderStops();
+  renderTable(plan, base);
+}
+
+function renderKpis(plan) {
+  const rs = Object.values(plan);
+  const late = rs.filter(r => r.late);
+  const totalLate = late.reduce((a, r) => a + r.diff, 0);
+  const end = rs.length ? Math.max(...rs.map(r => r.finish)) : null;
+  const stopHours = state.stops.reduce((a, s) => a + Number(s.hours), 0);
+  $('kpis').innerHTML = `
+    <div class="kpi"><div class="label">Ordrer</div><div class="value">${rs.length}</div><div class="sub">${fmtWork(rs.reduce((a, r) => a + r.workMin, 0))} produktionstid</div></div>
+    <div class="kpi ${late.length ? '' : 'goodk'}"><div class="label">Til tiden</div><div class="value">${rs.length - late.length}</div><div class="sub">af ${rs.length} ordrer</div></div>
+    <div class="kpi ${late.length ? 'bad' : ''}"><div class="label">Forsinkede</div><div class="value">${late.length}</div><div class="sub">${late.length ? late.map(r => esc(orderById(r.id).nr)).join(', ') : 'Ingen overskridelser'}</div></div>
+    <div class="kpi ${late.length ? 'bad' : ''}"><div class="label">Samlet forsinkelse</div><div class="value">${late.length ? fmtSpan(totalLate) : '–'}</div><div class="sub">kalendertid efter deadline</div></div>
+    <div class="kpi"><div class="label">Alt færdigt</div><div class="value" style="font-size:19px">${end ? fmtDT(end) : '–'}</div><div class="sub">${state.stops.length} maskinstop · ${fmtNum(stopHours)} t</div></div>`;
+}
+
+function renderChanges(plan) {
+  const el = $('changes');
+  if (!ui.changes) {
+    el.innerHTML = `<h2>Konsekvenser</h2><p class="muted">${esc(ui.changeLabel || 'Planen er beregnet.')} Når du ændrer rækkefølgen, planstart eller tilføjer et maskinstop, vises det her, hvilke ordrer der flytter sig – og om de når deres deadline.</p>`;
+    return;
+  }
+  const items = ui.changes.map(c => {
+    const o = orderById(c.id);
+    const head = `<span class="what">${esc(o.nr)} · ${esc(o.customer)}</span><span class="muted small">${esc(machineName(o.machine))}</span>`;
+    if (c.type === 'new') {
+      return `<li>${head}<span>Ny ordre – færdig ${fmtDT(c.n.finish)}</span>${statusBadge(c.n)}</li>`;
+    }
+    let trans;
+    if (c.n.late && !c.p.late) trans = `<span class="badge late">Bliver forsinket med ${fmtSpan(c.n.diff)}</span>`;
+    else if (!c.n.late && c.p.late) trans = `<span class="badge ok">Når nu sin deadline</span>`;
+    else if (c.n.late) trans = `<span class="badge warn">Stadig forsinket: ${fmtSpan(c.n.diff)}</span>`;
+    else trans = `<span class="badge neutral">Stadig til tiden · buffer ${fmtSpan(-c.n.diff)}</span>`;
+    const dir = c.delta > 0 ? `${fmtSpan(c.delta)} senere` : c.delta < 0 ? `${fmtSpan(c.delta)} tidligere` : 'uændret færdigtid';
+    return `<li>${head}<span>Færdig ${fmtDT(c.n.finish)} <span class="muted">(før ${fmtDT(c.p.finish)} · ${dir})</span></span>${trans}</li>`;
+  }).join('');
+  const lateNow = Object.values(plan).filter(r => r.late).length;
+  el.innerHTML = `
+    <div class="card-head"><h2>Konsekvenser af seneste ændring</h2><span class="muted small">${esc(ui.changeLabel)}</span></div>
+    ${ui.changes.length ? `<ul>${items}</ul>` : `<p class="muted">Ændringen flytter ikke nogen færdigtider.</p>`}
+    <p class="small muted" style="margin-top:8px">${lateNow ? `${lateNow} ordre${lateNow > 1 ? 'r' : ''} overskrider i alt deadline i den nuværende plan.` : 'Alle ordrer når deres deadline i den nuværende plan.'}</p>`;
+}
+
+function statusBadge(r) {
+  if (!r.deadline) return '<span class="badge neutral">Ingen deadline</span>';
+  return r.late
+    ? `<span class="badge late">Forsinket ${fmtSpan(r.diff)}</span>`
+    : `<span class="badge ok">Til tiden · buffer ${fmtSpan(-r.diff)}</span>`;
+}
+
+/* Tidslinje: kun arbejdstid vises, så hver arbejdsdag har samme bredde */
+function renderTimeline(plan) {
+  const rs = Object.values(plan);
+  const start = alignToWork(parseInput(state.planStart) || defaultStart());
+  let maxT = +start;
+  for (const r of rs) { maxT = Math.max(maxT, r.finish); if (r.deadline) maxT = Math.max(maxT, r.deadline); }
+  for (const m of MACHINES) for (const st of stopIntervals(m.id)) maxT = Math.max(maxT, st.e);
+
+  const days = [];
+  const d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const lastDay = new Date(maxT); lastDay.setHours(23, 59, 59, 0);
+  while ((d <= lastDay || days.length < 5) && days.length < 260) {
+    if (isWorkday(d)) days.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  const idx = new Map(days.map((x, i) => [dayKey(x), i]));
+  const width = days.length * DAY_W;
+  const xOf = t => {
+    if (t <= +days[0]) return 0;
+    const a = alignToWork(t);
+    const i = idx.get(dayKey(a));
+    if (i === undefined) return width;
+    return i * DAY_W + (minutesOfDay(a) - DAY_START) / WORK_MIN_PER_DAY * DAY_W;
+  };
+
+  // uger
+  const weeks = [];
+  for (const day of days) {
+    const w = isoWeek(day);
+    if (!weeks.length || weeks[weeks.length - 1].w !== w) weeks.push({ w, n: 1 });
+    else weeks[weeks.length - 1].n++;
+  }
+  const weekRow = weeks.map(w => `<div style="width:${w.n * DAY_W}px">Uge ${w.w}</div>`).join('');
+  const dayRow = days.map(x => `<div class="${x.getDay() === 1 ? 'monday' : ''}"><span>${fmtDate(x)}</span><span>07–15</span></div>`).join('');
+  const wkLines = days.map((x, i) => (x.getDay() === 1 && i > 0) ? `<div class="wkline" style="left:${i * DAY_W - 1}px"></div>` : '').join('');
+
+  const labels = [];
+  const lanes = [];
+  for (const m of MACHINES) {
+    const q = state.queues[m.id];
+    const lateCount = q.filter(id => plan[id].late).length;
+    const total = q.reduce((a, id) => a + plan[id].workMin, 0);
+    labels.push(`<div class="mlabel"><div class="mname">${esc(m.name)}</div><div class="msub">${q.length} ordrer · ${fmtWork(total)}</div>${lateCount ? `<div class="msub" style="color:var(--late-ink);font-weight:600">${lateCount} forsinket</div>` : ''}</div>`);
+
+    let html = wkLines;
+    // maskinstop (kun den del, der ligger i arbejdstiden)
+    for (const st of stopIntervals(m.id)) {
+      let cur = +alignToWork(st.s);
+      let first = true;
+      while (cur < st.e) {
+        const lim = Math.min(st.e, +endOfWorkday(new Date(cur)));
+        const x1 = xOf(cur), x2 = x1 + (lim - cur) / MIN / WORK_MIN_PER_DAY * DAY_W;
+        if (x2 > x1) html += `<div class="stopblk" data-stop="${esc(st.ref.id)}" style="left:${x1}px;width:${x2 - x1}px">${first ? 'Stop' : ''}</div>`;
+        first = false;
+        cur = +alignToWork(lim);
+      }
+    }
+    // ordrer
+    q.forEach((id, i) => {
+      const r = plan[id];
+      const o = orderById(id);
+      r.segs.forEach((s, k) => {
+        const x1 = xOf(s.s);
+        const x2 = x1 + (s.e - s.s) / MIN / WORK_MIN_PER_DAY * DAY_W;
+        const cls = ['seg', i % 2 ? 'alt' : '', r.late ? 'late' : '', k > 0 ? 'cl' : '', k < r.segs.length - 1 ? 'cr' : '',
+          ui.selected === id ? 'sel' : '', ui.selected && ui.selected !== id ? 'dim' : ''].join(' ');
+        html += `<div class="${cls}" data-id="${esc(id)}" style="left:${x1}px;width:${Math.max(2, x2 - x1 - 1)}px">` +
+          `<b>${k > 0 ? '↳ ' : ''}${esc(o.nr)}</b><span>${esc(o.customer)}</span></div>`;
+      });
+      if (ui.selected === id && r.deadline) {
+        html += `<div class="dlmark ${r.late ? 'late' : ''}" style="left:${xOf(r.deadline)}px"><span>Deadline ${esc(o.nr)} · ${fmtDT(r.deadline)}</span></div>`;
+      }
+    });
+    lanes.push(`<div class="lane" data-machine="${m.id}">${html}</div>`);
+  }
+
+  const scroller = document.querySelector('#timeline .tl-scroll');
+  const keepScroll = scroller ? scroller.scrollLeft : 0;
+  $('timeline').innerHTML = `
+    <div class="tl-labels"><div class="spacer">Maskine</div>${labels.join('')}</div>
+    <div class="tl-scroll"><div class="tl-inner" style="width:${width}px">
+      <div class="tl-weeks">${weekRow}</div>
+      <div class="tl-days">${dayRow}</div>
+      ${lanes.join('')}
+    </div></div>`;
+  document.querySelector('#timeline .tl-scroll').scrollLeft = keepScroll;
+}
+
+function renderQueues(plan) {
+  $('queues').innerHTML = MACHINES.map(m => {
+    const q = state.queues[m.id];
+    const total = q.reduce((a, id) => a + plan[id].workMin, 0);
+    const items = q.map((id, i) => {
+      const o = orderById(id), r = plan[id];
+      return `<li draggable="true" data-id="${esc(id)}" class="${r.late ? 'late' : ''} ${ui.selected === id ? 'sel' : ''}">
+        <span class="handle" title="Træk for at flytte">⋮⋮</span>
+        <span class="pos">${i + 1}</span>
+        <div class="qmain">
+          <div class="t">${esc(o.nr)} · ${esc(o.customer)}</div>
+          <div class="s">${fmtWork(r.workMin)} · færdig ${fmtDT(r.finish)} · deadline ${r.deadline ? fmtDT(r.deadline) : '–'}</div>
+        </div>
+        ${r.late ? `<span class="badge late">+${fmtSpan(r.diff)}</span>` : `<span class="badge ok">OK</span>`}
+        <span class="qbtns">
+          <button type="button" class="icon" data-action="up" data-id="${esc(id)}" ${i === 0 ? 'disabled' : ''} aria-label="Flyt ${esc(o.nr)} op">↑</button>
+          <button type="button" class="icon" data-action="down" data-id="${esc(id)}" ${i === q.length - 1 ? 'disabled' : ''} aria-label="Flyt ${esc(o.nr)} ned">↓</button>
+        </span>
+      </li>`;
+    }).join('');
+    return `<div class="queue">
+      <h3>${esc(m.name)} <small>${q.length} ordrer · ${fmtWork(total)}</small></h3>
+      <ol data-machine="${m.id}">${items || '<li style="cursor:default;grid-template-columns:1fr" class="muted small">Ingen ordrer</li>'}</ol>
+    </div>`;
+  }).join('');
+}
+
+function renderStops() {
+  const list = state.stops.slice().sort((a, b) => parseInput(a.start) - parseInput(b.start));
+  $('stopsList').innerHTML = list.length ? list.map(s => {
+    const a = parseInput(s.start), e = new Date(+a + Number(s.hours) * HOUR);
+    const offHours = +alignToWork(a) >= +e;
+    return `<li><div class="info"><strong>${esc(machineName(s.machine))}</strong> · ${fmtDT(a)} → ${fmtDT(e)} (${fmtNum(s.hours)} t)
+      ${s.reason ? `<span class="muted">– ${esc(s.reason)}</span>` : ''}
+      ${offHours ? '<div class="muted small">Ligger helt uden for arbejdstiden og påvirker ikke planen.</div>' : ''}</div>
+      <button type="button" class="icon" data-action="del-stop" data-id="${esc(s.id)}">Fjern</button></li>`;
+  }).join('') : '<li class="empty">Ingen maskinstop registreret.</li>';
+}
+
+function renderTable(plan, base) {
+  const rows = [];
+  for (const m of MACHINES) {
+    for (const id of state.queues[m.id]) {
+      const o = orderById(id), r = plan[id], b = base[id];
+      const effect = r.finish - b.finish;
+      rows.push(`<tr data-id="${esc(id)}" class="${r.late ? 'late' : ''} ${ui.selected === id ? 'sel' : ''} ${ui.flash.has(id) ? 'flash' : ''}">
+        <td><strong>${esc(o.nr)}</strong></td>
+        <td>${esc(o.customer)}</td>
+        <td>${esc(m.name)} <span class="muted">#${r.pos}</span></td>
+        <td class="num">${fmtNum(o.qty)}</td>
+        <td class="num">${fmtNum(o.min)} min</td>
+        <td class="num">${fmtWork(r.workMin)}<div class="calc">${fmtNum(o.qty)} × ${fmtNum(o.min)} min</div></td>
+        <td>${fmtDT(r.start)}</td>
+        <td><strong>${fmtDT(r.finish)}</strong></td>
+        <td>${r.deadline ? fmtDT(r.deadline) : '–'}</td>
+        <td>${statusBadge(r)}</td>
+        <td>${effect >= MIN ? `<span class="badge warn">+${fmtSpan(effect)}</span>` : '<span class="muted">–</span>'}</td>
+        <td><button type="button" class="icon" data-action="del-order" data-id="${esc(id)}" aria-label="Slet ordre ${esc(o.nr)}">Slet</button></td>
+      </tr>`);
+    }
+  }
+  $('tableWrap').innerHTML = `<table>
+    <thead><tr>
+      <th>Ordre</th><th>Kunde</th><th>Maskine</th><th class="num">Antal</th><th class="num">Tid/enhed</th>
+      <th class="num" title="Antal enheder × produktionstid pr. enhed">Ordretid</th>
+      <th>Start</th><th>Færdig</th><th>Deadline</th><th>Status</th><th title="Forsinkelse i forhold til planen uden maskinstop">Effekt af maskinstop</th><th></th>
+    </tr></thead>
+    <tbody>${rows.join('') || '<tr><td colspan="12" class="muted">Ingen ordrer</td></tr>'}</tbody>
+  </table>`;
+}
+
+/* ---------- Handlinger ---------- */
+function moveOrder(id, newIndex) {
+  const o = orderById(id);
+  const q = state.queues[o.machine];
+  const from = q.indexOf(id);
+  if (from < 0) return;
+  const rest = q.filter(x => x !== id);
+  newIndex = Math.max(0, Math.min(rest.length, newIndex));
+  rest.splice(newIndex, 0, id);
+  if (rest.join() === q.join()) return;
+  state.queues[o.machine] = rest;
+  commit(`${o.nr} flyttet fra plads ${from + 1} til plads ${newIndex + 1} på ${machineName(o.machine)}`);
+}
+
+function select(id) {
+  ui.selected = ui.selected === id ? null : id;
+  ui.flash = new Set();
+  render(ui.lastPlan);
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('button[data-action]');
+  if (btn) {
+    const id = btn.dataset.id;
+    const act = btn.dataset.action;
+    if (act === 'up' || act === 'down') {
+      const o = orderById(id);
+      const i = state.queues[o.machine].indexOf(id);
+      moveOrder(id, act === 'up' ? i - 1 : i + 1);
+    } else if (act === 'del-stop') {
+      const s = state.stops.find(x => x.id === id);
+      state.stops = state.stops.filter(x => x.id !== id);
+      commit(`Maskinstop på ${machineName(s.machine)} (${fmtDT(parseInput(s.start))}) fjernet`);
+    } else if (act === 'del-order') {
+      const o = orderById(id);
+      if (!confirm(`Slet ordre ${o.nr} (${o.customer})?`)) return;
+      state.orders = state.orders.filter(x => x.id !== id);
+      state.queues[o.machine] = state.queues[o.machine].filter(x => x !== id);
+      if (ui.selected === id) ui.selected = null;
+      commit(`Ordre ${o.nr} slettet`);
+    }
+    return;
+  }
+  const seg = e.target.closest('.seg[data-id], tbody tr[data-id], .queue li[data-id]');
+  if (seg) { select(seg.dataset.id); return; }
+});
+
+$('planStart').addEventListener('change', e => {
+  const d = parseInput(e.target.value);
+  if (!d) { e.target.value = state.planStart; return; }
+  state.planStart = e.target.value;
+  commit(`Planstart ændret til ${fmtDT(d)}`);
+});
+
+$('resetBtn').addEventListener('click', () => {
+  if (!confirm('Nulstil til de oprindelige eksempelordrer? Dine ændringer og maskinstop slettes.')) return;
+  state = sampleState();
+  ui.selected = null;
+  ui.lastPlan = null;
+  commit('Nulstillet til eksempeldata.');
+  initFormDefaults();
+});
+
+$('stopForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const start = parseInput($('stopStart').value);
+  const hours = parseFloat(String($('stopHours').value).replace(',', '.'));
+  const msg = $('stopMsg');
+  if (!start) { msg.textContent = 'Angiv et gyldigt starttidspunkt.'; return; }
+  if (!(hours > 0) || hours > 24 * 60) { msg.textContent = 'Varigheden skal være mellem 0,25 og 1440 timer.'; return; }
+  msg.textContent = '';
+  const st = { id: uid('s'), machine: $('stopMachine').value, start: $('stopStart').value, hours, reason: $('stopReason').value.trim() };
+  state.stops.push(st);
+  $('stopReason').value = '';
+  commit(`Maskinstop på ${machineName(st.machine)}: ${fmtDT(start)}, ${fmtNum(hours)} t`);
+});
+
+$('orderForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const msg = $('orderMsg');
+  const nr = $('oNr').value.trim(), customer = $('oCustomer').value.trim();
+  const qty = parseFloat($('oQty').value), min = parseFloat(String($('oMin').value).replace(',', '.'));
+  const deadline = $('oDeadline').value, machine = $('oMachine').value;
+  if (!nr || !customer) { msg.textContent = 'Udfyld ordrenummer og kunde.'; return; }
+  if (state.orders.some(o => o.nr === nr)) { msg.textContent = 'Ordrenummeret findes allerede.'; return; }
+  if (!(qty > 0) || !(min > 0)) { msg.textContent = 'Antal og tid pr. enhed skal være større end 0.'; return; }
+  if (!parseInput(deadline)) { msg.textContent = 'Angiv en gyldig deadline.'; return; }
+  msg.textContent = '';
+  const o = { id: uid('o'), nr, customer, qty: Math.round(qty), min, deadline, machine };
+  state.orders.push(o);
+  state.queues[machine].push(o.id);
+  $('orderForm').reset();
+  initFormDefaults();
+  commit(`Ny ordre ${nr} tilføjet sidst i køen på ${machineName(machine)}`);
+});
+
+/* Træk og slip i køerne (inden for samme maskine) */
+let dragId = null;
+const queuesEl = $('queues');
+const clearDrop = () => queuesEl.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+queuesEl.addEventListener('dragstart', e => {
+  const li = e.target.closest('li[data-id]');
+  if (!li) return;
+  dragId = li.dataset.id;
+  li.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {}
+});
+queuesEl.addEventListener('dragend', () => {
+  dragId = null;
+  clearDrop();
+  queuesEl.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+});
+queuesEl.addEventListener('dragover', e => {
+  const list = e.target.closest('ol[data-machine]');
+  if (!list || !dragId || list.dataset.machine !== orderById(dragId).machine) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  clearDrop();
+  const li = e.target.closest('li[data-id]');
+  if (li && li.dataset.id !== dragId) {
+    const r = li.getBoundingClientRect();
+    li.classList.add(e.clientY > r.top + r.height / 2 ? 'drop-after' : 'drop-before');
+  }
+});
+queuesEl.addEventListener('drop', e => {
+  const list = e.target.closest('ol[data-machine]');
+  if (!list || !dragId || list.dataset.machine !== orderById(dragId).machine) return;
+  e.preventDefault();
+  const q = state.queues[list.dataset.machine].filter(x => x !== dragId);
+  const li = e.target.closest('li[data-id]');
+  let index = q.length;
+  if (li && li.dataset.id !== dragId) {
+    const r = li.getBoundingClientRect();
+    index = q.indexOf(li.dataset.id) + (e.clientY > r.top + r.height / 2 ? 1 : 0);
+  } else if (li && li.dataset.id === dragId) {
+    return clearDrop();
+  }
+  const id = dragId;
+  clearDrop();
+  moveOrder(id, index);
+});
+
+/* Værktøjstip */
+const tip = $('tooltip');
+function showTip(html, e) {
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+  if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+  tip.style.left = Math.max(8, x) + 'px';
+  tip.style.top = Math.max(8, y) + 'px';
+}
+$('timeline').addEventListener('mousemove', e => {
+  const seg = e.target.closest('.seg[data-id]');
+  const stop = e.target.closest('.stopblk[data-stop]');
+  if (seg) {
+    const o = orderById(seg.dataset.id), r = ui.lastPlan[seg.dataset.id];
+    showTip(`<div class="tt-title">${esc(o.nr)} · ${esc(o.customer)}</div><dl>
+      <dt>Maskine</dt><dd>${esc(machineName(o.machine))} (plads ${r.pos})</dd>
+      <dt>Ordretid</dt><dd>${fmtNum(o.qty)} × ${fmtNum(o.min)} min = ${fmtWork(r.workMin)}</dd>
+      <dt>Start</dt><dd>${fmtDT(r.start)}</dd>
+      <dt>Færdig</dt><dd>${fmtDT(r.finish)}</dd>
+      <dt>Deadline</dt><dd>${r.deadline ? fmtDT(r.deadline) : '–'}</dd>
+      <dt>Status</dt><dd>${r.late ? `<strong style="color:var(--late-ink)">Forsinket ${fmtSpan(r.diff)}</strong>` : `Til tiden (buffer ${fmtSpan(-r.diff)})`}</dd>
+    </dl>`, e);
+  } else if (stop) {
+    const s = state.stops.find(x => x.id === stop.dataset.stop);
+    if (!s) return;
+    const a = parseInput(s.start);
+    showTip(`<div class="tt-title">Maskinstop · ${esc(machineName(s.machine))}</div><dl>
+      <dt>Fra</dt><dd>${fmtDT(a)}</dd><dt>Til</dt><dd>${fmtDT(+a + s.hours * HOUR)}</dd>
+      <dt>Varighed</dt><dd>${fmtNum(s.hours)} t</dd>${s.reason ? `<dt>Årsag</dt><dd>${esc(s.reason)}</dd>` : ''}</dl>`, e);
+  } else {
+    tip.style.display = 'none';
+  }
+});
+$('timeline').addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+
+/* ---------- Start ---------- */
+function initFormDefaults() {
+  const opts = MACHINES.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('');
+  $('stopMachine').innerHTML = opts;
+  $('oMachine').innerHTML = opts;
+  $('stopMachine').value = 'M3';
+  const s = parseInput(state.planStart) || defaultStart();
+  $('stopStart').value = toInput(addWorkdays(s, 2, 7, 0));
+  $('oDeadline').value = toInput(addWorkdays(s, 5, 15, 0));
+}
+
+const loaded = load();
+state = loaded.state;
+initFormDefaults();
+commit(loaded.from === 'storage' ? 'Din gemte plan er indlæst fra browseren.' : 'Eksempeldata er indlæst – to ordrer overskrider deres deadline. Prøv at ændre rækkefølgen.');
+</script>
+</body>
+</html>
